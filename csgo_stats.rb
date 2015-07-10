@@ -1,3 +1,4 @@
+$LOAD_PATH << '.'
 require 'rubygems'
 require 'net/http'
 require 'open-uri'
@@ -6,21 +7,22 @@ require 'nokogiri'
 require 'cgi'
 require 'digest'
 require 'action_view'
+require 'json_fetcher'
 include ActionView::Helpers::DateHelper
 
 class CsgoStats
+  include JsonFetcher
+  FAILURE_TO_RETREIVE = "Failed to GET CSGO data from csgo-stats.com"
   ENDPOINT = "http://csgo-stats.com/destinygg/?ajax&uptodate"
   HUMAN_LINK = "http://csgo-stats.com/destinygg/"
   VALID_WORDS = %w{cs csgo counterstrike ayyylmao sotriggered}
   RATE_LIMIT = 16 # seconds
-  CACHE_DURATION = 60 #seconds
-  APP_ROOT = File.expand_path(File.dirname(__FILE__))
-  CACHE_FILE = APP_ROOT+"/cache/"
 
   attr_accessor :regex, :last_message
   def initialize
     @regex = /^!(#{VALID_WORDS.join('|')})/i
   end
+  
   def ready
     last_time = @last_time || 0
     now = Time.now.to_i
@@ -30,6 +32,7 @@ class CsgoStats
     end
     return false
   end
+  
   def check(query)
     return trycheck(query)
   rescue Exception => e
@@ -39,22 +42,9 @@ class CsgoStats
     puts m
     " AYYYLMAO tell hephaestus something broke. Exception: #{e.message.to_s}"
   end
+  
   def trycheck(query)
-    cached = getcached(ENDPOINT) || {}
-    cached["date"] ||= 0
-    # expire cache if...
-    if cached["date"].to_i < (Time.now.to_i - CACHE_DURATION)
-      jsn = getjson(ENDPOINT)
-      if jsn.nil?
-        raise "Failed to GET CSGO data from csgo-stats.com"
-      else
-        jsn["date"] ||= Time.now.to_i
-        setcached(ENDPOINT, jsn)
-      end
-    else
-      jsn = cached
-    end
-
+    jsn = fetchjson(ENDPOINT, FAILURE_TO_RETREIVE)
     parsed_html = Nokogiri.parse(jsn["content"])
     lastmatch = parsed_html.css("#lastmatch")
     lmtxt = lastmatch.children[3].text()
@@ -76,35 +66,5 @@ class CsgoStats
     # output << " ago"
     # # output << " i finished checking at "+time_ago_in_words(Time.now)
     # return output
-  end
-
-  def getjson(url)
-    content = open(url).read
-    return JSON.parse(content)
-  end
-
-  # safe cache! won't die if the bot dies
-  def getcached(url)
-    _cached = instance_variable_get "@cached_#{hashed(url)}"
-    return _cached unless _cached.nil?
-    path = CACHE_FILE + "#{hashed(url)}.json"
-    if File.exists?(path)
-      f = File.open(path)
-      _cached = JSON.parse(f.read)
-      instance_variable_set("@cached_#{hashed(url)}", _cached)
-      return _cached
-    end
-    return nil
-  end
-  def setcached(url, jsn)
-    instance_variable_set("@cached_#{hashed(url)}", jsn)
-    path = CACHE_FILE + "#{hashed(url)}.json"
-    File.open(path, 'w') do |f2|
-      f2.puts JSON.unparse(jsn)
-    end
-  end
-
-  def hashed(url)
-    return Digest::MD5.hexdigest(url).to_s
   end
 end
