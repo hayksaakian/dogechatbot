@@ -25,9 +25,6 @@ class LolStats
   UA = "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/40.0.2214.115 Safari/537.36"
   VALID_WORDS = %w{lol league heimerdonger dravewin surprise}
   RATE_LIMIT = 16 # seconds
-  CACHE_DURATION = 60 #seconds
-  APP_ROOT = File.expand_path(File.dirname(__FILE__))
-  CACHE_FILE = APP_ROOT+"/cache/"
 
   attr_accessor :regex, :last_message
   def initialize
