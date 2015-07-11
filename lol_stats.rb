@@ -35,6 +35,7 @@ class LolStats
       @champion_names[details['id']] = details['name']
     end
   end
+  
   def ready
     last_time = @last_time || 0
     now = Time.now.to_i
@@ -44,6 +45,7 @@ class LolStats
     end
     return false
   end
+  
   def check(query)
     return trycheck(query)
   rescue Exception => e
@@ -53,6 +55,7 @@ class LolStats
     puts m
     " Heimerdonger tell hephaestus something broke with !lol. Exception: #{e.message.to_s}"
   end
+  
   def trycheck(query)
     cached = getcached(ENDPOINT) || {}
     cached["date"] ||= 0
