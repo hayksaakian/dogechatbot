@@ -47,7 +47,7 @@ class CsgoStats
   end
 
   def trycheck(query)
-    cached = getcached(ENDPOINT)
+    cached = getcached(ENDPOINT) || {}
     if is_expired?(cached)
       jsn = getjson(ENDPOINT)
       if !jsn.nil?

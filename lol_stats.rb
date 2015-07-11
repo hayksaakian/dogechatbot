@@ -1,3 +1,5 @@
+# coding: utf-8
+$LOAD_PATH << '.'
 require 'rubygems'
 require 'net/http'
 require 'open-uri'
@@ -6,9 +8,13 @@ require 'nokogiri'
 require 'cgi'
 require 'digest'
 require 'action_view'
+require 'json_fetcher'
+require 'safe_cache'
 include ActionView::Helpers::DateHelper
 
 class LolStats
+  include JsonFetcher
+  include SafeCache
   # ENDPOINT = "http://na.op.gg/summoner/userName=NeoD%C3%A9stiny"
   ENDPOINT = "https://na.api.pvp.net/api/lol/na/v1.3/game/by-summoner/26077457/recent?api_key=#{ENV['LOL_API_KEY']}"
   CHAMPION_ENDPOINT = "https://na.api.pvp.net/api/lol/static-data/na/v1.2/champion?api_key=#{ENV['LOL_API_KEY']}"
@@ -54,7 +60,7 @@ class LolStats
     cached = getcached(ENDPOINT) || {}
     cached["date"] ||= 0
     # expire cache if...
-    if cached["date"].to_i < (Time.now.to_i - CACHE_DURATION)
+    if is_expired?(cached)
       # TODO: consider checking 
       # https://na.api.pvp.net/observer-mode/rest/consumer/getSpectatorGameInfo/NA1/26077457
       # to see if a game is live
@@ -109,35 +115,5 @@ class LolStats
       output = out_parts.join(' ')
     end
     return output
-  end
-
-  def getjson(url)
-    content = open(url).read
-    return JSON.parse(content)
-  end
-
-  # safe cache! won't die if the bot dies
-  def getcached(url)
-    _cached = instance_variable_get "@cached_#{hashed(url)}"
-    return _cached unless _cached.nil?
-    path = CACHE_FILE + "#{hashed(url)}.json"
-    if File.exists?(path)
-      f = File.open(path)
-      _cached = JSON.parse(f.read)
-      instance_variable_set("@cached_#{hashed(url)}", _cached)
-      return _cached
-    end
-    return nil
-  end
-  def setcached(url, jsn)
-    instance_variable_set("@cached_#{hashed(url)}", jsn)
-    path = CACHE_FILE + "#{hashed(url)}.json"
-    File.open(path, 'w') do |f2|
-      f2.puts JSON.unparse(jsn)
-    end
-  end
-
-  def hashed(url)
-    return Digest::MD5.hexdigest(url).to_s
   end
 end
