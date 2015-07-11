@@ -8,19 +8,22 @@ require 'cgi'
 require 'digest'
 require 'action_view'
 require 'json_fetcher'
+require 'safe_cache'
 include ActionView::Helpers::DateHelper
 
 class CsgoStats
   include JsonFetcher
-  FAILURE_TO_RETREIVE = "Failed to GET CSGO data from csgo-stats.com"
+  include SafeCache
+  
   ENDPOINT = "http://csgo-stats.com/destinygg/?ajax&uptodate"
   HUMAN_LINK = "http://csgo-stats.com/destinygg/"
   VALID_WORDS = %w{cs csgo counterstrike ayyylmao sotriggered}
   RATE_LIMIT = 16 # seconds
 
-  attr_accessor :regex, :last_message
+  attr_accessor :regex, :last_message, :FAIL_MSG
   def initialize
     @regex = /^!(#{VALID_WORDS.join('|')})/i
+    @FETCH_FAIL_MSG = "Failed to GET CSGO data from csgo-stats.com"
   end
   
   def ready
@@ -42,9 +45,20 @@ class CsgoStats
     puts m
     " AYYYLMAO tell hephaestus something broke. Exception: #{e.message.to_s}"
   end
-  
+
   def trycheck(query)
-    jsn = fetchjson(ENDPOINT, FAILURE_TO_RETREIVE)
+    cached = getcached(ENDPOINT)
+    if is_expired?(cached)
+      jsn = getjson(ENDPOINT)
+      if !jsn.nil?
+        jsn["date"] ||= Time.now.to_i
+        setcached(ENDPOINT, jsn)
+      end
+    else
+      puts "getting from cache"
+      jsn = cached
+    end
+
     parsed_html = Nokogiri.parse(jsn["content"])
     lastmatch = parsed_html.css("#lastmatch")
     lmtxt = lastmatch.children[3].text()
