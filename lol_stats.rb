@@ -8,6 +8,7 @@ require 'nokogiri'
 require 'cgi'
 require 'digest'
 require 'action_view'
+require 'similar_text'
 require 'json_fetcher'
 require 'safe_cache'
 include ActionView::Helpers::DateHelper
@@ -34,6 +35,7 @@ class LolStats
     cl['data'].each do |code_name, details|
       @champion_names[details['id']] = details['name']
     end
+    @last_message = ""
   end
   
   def ready
@@ -58,13 +60,14 @@ class LolStats
   
   def trycheck(query)
     cached = getcached(ENDPOINT) || {}
-    cached["date"] ||= 0
-    # expire cache if...
+
+    puts cached["date"]
     if is_expired?(cached)
       # TODO: consider checking 
       # https://na.api.pvp.net/observer-mode/rest/consumer/getSpectatorGameInfo/NA1/26077457
       # to see if a game is live
       # and show different stats
+      puts "Not using cache"
 
       page = getjson(ENDPOINT)
       recent_game = page["games"][0]
@@ -82,8 +85,8 @@ class LolStats
       cached["rank"] += " #{rank_stats['entries'][0]['leaguePoints']}/100 LP"
       cached["win_loss_ratio"] = "#{rank_stats['entries'][0]['wins']} / #{rank_stats['entries'][0]['losses']}"
 
-      cached["when"] = Time.at(recent_stats['timePlayed'].to_f + (recent_game["createDate"].to_f / 1000.000))
-      cached["date"] ||= Time.now.to_i
+      cached["when"] = Time.at(recent_stats['timePlayed'].to_f + (recent_game["createDate"].to_f / 1000.000)).to_i
+      cached["date"] = Time.now.to_i
 
       # page = Nokogiri::HTML(open(ENDPOINT, 'User-Agent' => UA, 'Accept-Language' => 'en-GB,en-US;q=0.8,en;q=0.6'))
       # cached["kda"] = page.css(".GameStats .kda")[0].text.strip.gsub("\n", " ").gsub("\t", "").strip
@@ -97,23 +100,24 @@ class LolStats
       setcached(ENDPOINT, cached)
     end
     game = cached
+
     # might not have good json
     result = game["last_win_or_loss"] ? "won" : "lost"
     summoner = "Destiny"
     character = game['champion_name']
 
-    # Destiny lost a solo game on King Sejong Station LE 7h9m ago. sc2ranks.com/character/us/310150/Destiny
     out_parts = []
     out_parts << " #{summoner} #{result} a game "
     out_parts << " 「#{game["kda"]}」 as #{character} "
     out_parts << " ranked #{game["rank"]} "
-    out_parts << " in #{game['mode']} #{time_ago_in_words(game['when'])} ago. " 
+    out_parts << " in #{game['mode']} #{time_ago_in_words(Time.at(game['when']))} ago. " 
     out_parts << " #{USER_ENDPOINT} "
     output = out_parts.join(' ')
     if output.similar(@last_message) >= 70
       out_parts.shuffle!
       output = out_parts.join(' ')
     end
+    @last_message = output
     return output
   end
 end
